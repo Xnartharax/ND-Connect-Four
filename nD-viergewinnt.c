@@ -4,7 +4,7 @@
 #include <string.h>
 #include <ncurses.h>
 #include "datastructures.h"
-#define N_DIMS 100
+#define N_DIMS 5
 #define SIZE 5
 #define N_PLAYER 2
 #define N_AXES (pow(2, N_DIMS)-1)
@@ -129,6 +129,34 @@ void set_coords(int coords[], int n){
     
     append_to_hashlist(&player_owned[n-1], (void *) coords_append);
 }
+int inplace_count_axis(int coords[], int new_coords[], int s, int a){
+    /*
+    a is an integer whose binary representation is a code for the axis that is counted along.
+    An point along an axis with offset x has in every element either 0 or +/-x.
+    An axis is defined by the dimensions in wich the their elemts are zero.
+    A dimension that has +/-x is represented by a 1 on that doesnt change (stays zero) is represented by 0.
+    Those 0s and 1s can be represented as an integer.
+    Each of the axis can be rotated now wich means they can have different signs in every dimension.
+    The sign combination can be represented in the same manner as the axis is represented.
+    */
+    int count = 0;
+    for(int j = 0; j < 4; j++){
+        for(int k = 0; k < N_DIMS; k++){
+            if((s >> k) & 1 == 1) 
+                new_coords[k] = coords[k] + j*((a >> k) & 1); //signmask positive
+            else
+                new_coords[k] = coords[k] - j*((a >> k) & 1); //signmask negative
+            
+        }
+        if(get_coords(new_coords) == current_player){
+            count++;
+        }
+        else
+            break;
+                    
+    }
+    return count;
+}
 int check_win_coords(int coords[]){
     // really bad algortihm expeonential complexity but no other way around I think
     for (int i = 0; i < N_AXES; i++)
@@ -136,28 +164,15 @@ int check_win_coords(int coords[]){
         int axis = i+1; //equal or zero mask
         int max_row = 0;
         int new_coords[N_DIMS];
-        for (int s = 0; s<=N_AXES;s++){ //s sign mask
-            for(int j = 0; j < 4; j++){
-                
-                for(int k = 0; k < N_DIMS; k++){
-                    if((s >> k) & 1 == 1) 
-                        new_coords[k] = coords[k] + j*((axis >> k) & 1); //signmask positive
-                    else
-                        new_coords[k] = coords[k] - j*((axis >> k) & 1); //signmask negative
-                    
-                }
-                if(get_coords(new_coords) == current_player){
-                    max_row++;
-                    if(max_row == 4){
-                        return 1;
-                    }
-                }
-                else{
-                    max_row = 0;
-                    break;
-                }
-            }
+        for (int s = 0; s<=N_AXES/2;s++){ //s sign mask
+            int s_up = s;
+            int s_down = ~s; // bit flipping the signmask to get the opposite direction of the axis
+            max_row = inplace_count_axis(coords, new_coords, s_up, axis);
+            max_row += inplace_count_axis(coords, new_coords, s_down, axis);
+            if (max_row > 4) return 1; // greater than and not not equal because coords are counted double
+            max_row = 0;
         }
+
     }
     return 0;
 }
